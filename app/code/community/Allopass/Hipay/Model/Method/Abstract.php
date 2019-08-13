@@ -127,9 +127,14 @@ abstract class Allopass_Hipay_Model_Method_Abstract extends Mage_Payment_Model_M
 		$receiver = Mage::getModel('customer/customer')->load($payment->getOrder()->getCustomerId());
 		$message = Mage::helper('hipay')->__('Your transaction has been approved.');
 		$email_key = "fraud_payment_accept";
-		$this->getHelper()->sendFraudPaymentEmail($receiver, $payment->getOrder(), $message,$email_key);
+		if($this->canSendFraudEmail($payment->getOrder()->getStoreId())){		
+			$this->getHelper()->sendFraudPaymentEmail($receiver, $payment->getOrder(), $message,$email_key);
+		}
 		
-		return $this;
+		$payment->setPreparedMessage( Mage::helper('hipay')->__('Transaction is in pending notification.'));
+		
+		// Return false because payment is accepted by notification
+		return false;
 	}
 	
 	public function denyPayment(Mage_Payment_Model_Info $payment)
@@ -155,9 +160,11 @@ abstract class Allopass_Hipay_Model_Method_Abstract extends Mage_Payment_Model_M
 		$receiver = Mage::getModel('customer/customer')->load($payment->getOrder()->getCustomerId());
 		$message = Mage::helper('hipay')->__('Your transaction has been refused.');
 		$email_key = "fraud_payment_deny";
-		$this->getHelper()->sendFraudPaymentEmail($receiver, $payment->getOrder(), $message,$email_key);
+		if($this->canSendFraudEmail($payment->getOrder()->getStoreId())){
+			$this->getHelper()->sendFraudPaymentEmail($receiver, $payment->getOrder(), $message,$email_key);
+		}
 		
-		return $this;
+		return true;
 	}
 	
 	/**
@@ -430,17 +437,37 @@ abstract class Allopass_Hipay_Model_Method_Abstract extends Mage_Payment_Model_M
 						$payment->setAmountAuthorized($gatewayResponse->getAuthorizedAmount());
 						$payment->setBaseAmountAuthorized($gatewayResponse->getAuthorizedAmount());
 
+						//If status Capture Requested is not configured to validate the order, we break.
 						if(((int)$this->getConfigData('hipay_status_validate_order') == 117) === false )
 							break;
 						
-					case 118: //Capture
-						
+					case 118: //Capture. There are 2 ways to enter in this case: 1. direct capture notification. 2. After 117 case, when it is configured for valid order with 117 status.
+							
 						if($order->getStatus() == $this->getConfigData('order_status_payment_accepted') )
 						{
-						 	break;
+							break;
+						}
+						//If status Capture Requested is configured to validate the order and is a direct capture notification (118), we break because order is already validate.
+						if(((int)$this->getConfigData('hipay_status_validate_order') == 117) === true && (int)$gatewayResponse->getStatus() == 118) 
+						{
+							// if callback 118 and config validate order = 117 and no 117 in history - execute treatment alse break
+							$histories = Mage::getResourceModel('sales/order_status_history_collection')
+												->setOrderFilter($order)
+												->addFieldToFilter('comment',array('like'=>'%code-117%'));
+							if($histories->count() > 0){
+						 		break;
+						 	}
 						}
 						
-						if ($amount != $order->getBaseGrandTotal()) {
+						//Check if it is split payment and insert it
+						$profile=0;
+						if(($profile = (int)$payment->getAdditionalInformation('split_payment_id')) && $customer->getId())
+						{
+							$token = isset( $gatewayResponse->paymentMethod['token']) ? $gatewayResponse->paymentMethod['token'] : $gatewayResponse->getData('cardtoken');
+							$this->getHelper()->insertSplitPayment($order, $profile,$customer->getId(),$token);
+						}
+						
+						if ($amount != $order->getBaseGrandTotal() && !$profile) {
 						
 							$transactionId = $gatewayResponse->getTransactionReference();
 							$order->addStatusHistoryComment(Mage::helper('hipay')->__('Notification "Capture". Capture issued by merchant. Registered notification about captured amount of %s. Transaction ID: "%s". Invoice has not been created. Please create offline Invoice.',
@@ -758,7 +785,7 @@ abstract class Allopass_Hipay_Model_Method_Abstract extends Mage_Payment_Model_M
 				
 				$message = Mage::helper('hipay')->__($gatewayResponse->getMessage());
 				
-				if($this->getConfigData('send_fraud_payment_email',$order->getStoreId()));
+				if($this->canSendFraudEmail($order->getStoreId()))
 				{
 					$email_key='fraud_payment';
 					if($fraudScreening['result'] != 'challenged' || $gatewayResponse->getState() == self::STATE_DECLINED)
@@ -769,6 +796,15 @@ abstract class Allopass_Hipay_Model_Method_Abstract extends Mage_Payment_Model_M
 			}
 		
 		}
+	}
+	
+	/**
+	 * 
+	 * @param int $storeId
+	 * @return bool
+	 */
+	protected function canSendFraudEmail($storeId=null){
+		return (bool)$this->getConfigData('send_fraud_payment_email',$storeId);
 	}
 
 	/**

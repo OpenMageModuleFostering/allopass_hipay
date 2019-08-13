@@ -74,7 +74,11 @@ class Allopass_Hipay_Model_Method_Cc extends Allopass_Hipay_Model_Method_Abstrac
 		return $instance;
 	}
 	
-	
+	/**
+	 *
+	 * @param Mage_Sales_Model_Order_Payment $payment
+	 * @return 	array
+	 */
 	protected function getVaultParams($payment)
 	{
 		$params = array();
@@ -83,6 +87,11 @@ class Allopass_Hipay_Model_Method_Cc extends Allopass_Hipay_Model_Method_Abstrac
 		$params['card_expiry_year'] = $payment->getCcExpYear();
 		$params['cvc'] = $payment->getCcCid();
 		$params['multi_use'] = 1; 
+		
+		//Add card holder
+		$billing = $payment->getOrder()->getBillingAddress();
+		$defaultOwner = $billing->getFirstname() && $billing->getLastname() ? $billing->getFirstname() . ' ' . $billing->getLastname() : $billing->getEmail();
+		$params['card_holder'] = $payment->getCcOwner() ? $payment->getCcOwner() : $defaultOwner;
 
 		$this->_debug($params);
 		
@@ -253,6 +262,8 @@ class Allopass_Hipay_Model_Method_Cc extends Allopass_Hipay_Model_Method_Abstrac
                             . '|(^(49118)[0-2](\d{10}$|\d{12,13}$))|(^(4936)(\d{12}$|\d{14,15}$))/',
                     // Visa
                     'VI'  => '/^4[0-9]{12}([0-9]{3})?$/',
+					// CB
+					'CB'  => '/^4[0-9]{12}([0-9]{3})?$/',
                     // Master Card
                     'MC'  => '/^5[1-5][0-9]{14}$/',
             		// American Express
@@ -320,6 +331,7 @@ class Allopass_Hipay_Model_Method_Cc extends Allopass_Hipay_Model_Method_Abstrac
 	{
 		$verificationExpList = array(
 				'VI' => '/^[0-9]{3}$/', // Visa
+				'CB' => '/^[0-9]{3}$/', // Visa
 				'MC' => '/^[0-9]{3}$/',       // Master Card
 				'AE' => '/^[0-9]{4}$/',        // American Express
 				'DI' => '/^[0-9]{3}$/',          // Discovery
@@ -345,7 +357,7 @@ class Allopass_Hipay_Model_Method_Cc extends Allopass_Hipay_Model_Method_Abstrac
 	
 	public function OtherCcType($type)
 	{
-		return $type=='OT';
+		return $type=='OT' || $type=='CB';
 	}
 	
 	/**

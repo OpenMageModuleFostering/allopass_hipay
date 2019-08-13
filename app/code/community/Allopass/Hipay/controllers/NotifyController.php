@@ -46,6 +46,8 @@ class Allopass_Hipay_NotifyController extends Mage_Core_Controller_Front_Action
 		if(!$order->getId() && (strpos($orderArr['id'], 'recurring') === false && strpos($orderArr['id'], 'split') === false))
 			die("Order not found in notification");
 		
+		$isSplitPayment = false;	
+			
 		if(strpos($orderArr['id'], 'recurring') !== false)
 		{
 	
@@ -70,6 +72,7 @@ class Allopass_Hipay_NotifyController extends Mage_Core_Controller_Front_Action
 			list($id,$type,$splitPaymentId) = explode("-", $orderArr['id']);
 			/* @var $order Mage_Sales_Model_Order */
 			$order = Mage::getModel('sales/order')->loadByIncrementId($id);
+			$isSplitPayment = true;
 		}
 		
 		$payment = $order->getPayment();
@@ -87,13 +90,15 @@ class Allopass_Hipay_NotifyController extends Mage_Core_Controller_Front_Action
 		$transactionId = $response->getTransactionReference();		
 
 		// Move Notification before processing
-		$message = Mage::helper('hipay')->__("Notification from Hipay:") . " " . Mage::helper('hipay')->__("status") . ": ". $response->getStatus(). " Message: " .$response->getMessage()." ".Mage::helper('hipay')->__('amount: %s',(string)$amount);
+		$message = Mage::helper('hipay')->__("Notification from Hipay:") . " " . Mage::helper('hipay')->__("status") . ": code-". $response->getStatus(). " Message: " .$response->getMessage()." ".Mage::helper('hipay')->__('amount: %s',(string)$amount);
 		
 		$order->addStatusToHistory($order->getStatus(), $message);
 		$order->save();
-
-		// THEN processResponse
- +		$methodInstance->processResponse($response, $payment, $amount);
+		
+		if(!$isSplitPayment){ //If is a part of payment, we do not process reponse	
+			// THEN processResponse
+			$methodInstance->processResponse($response, $payment, $amount);
+		}
 		
 		return $this;	
 		
