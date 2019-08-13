@@ -53,8 +53,6 @@ $_cards = $this->getCards();
             <input type="text" title="<?php echo $this->__('Name on Card') ?>" class="input-text required-entry" id="<?php echo $_code ?>_cc_owner" name="payment[<?php echo $_code ?>_cc_owner]" value="<?php echo $this->htmlEscape($this->getInfoData('cc_owner')) ?>" />
         </div>
     </li>
-    <?php else: ?>
-    	    <input type="hidden" id="<?php echo $_code ?>_cc_owner" name="payment[<?php echo $_code ?>_cc_owner]" value="<?php echo $this->htmlEscape($this->getQuote()->getBillingAddress()->getFirstname() . " " . $this->getQuote()->getBillingAddress()->getLastname()) ?>" />
     <?php endif; ?>
     <li>
         <label for="<?php echo $_code ?>_cc_number" class="required"><em>*</em><?php echo $this->__('Credit Card Number') ?></label>
@@ -165,7 +163,6 @@ $_cards = $this->getCards();
  	//<![CDATA[
  	    
  	    Validation.creditCartTypes.set('BCMC',[false, new RegExp('^([0-9]{3}|[0-9]{4})?$'), false]);
- 	   Validation.creditCartTypes.set('CB',[new RegExp('^4[0-9]{12}([0-9]{3})?$'), new RegExp('^[0-9]{3}$'), true]);
  	        
         var ToogleCvn<?php echo $_code ?> = function() {
         	var elm = $('<?php echo $_code ?>_cc_type');
@@ -182,7 +179,7 @@ $_cards = $this->getCards();
         <?php if($this->allowSplitPayment()) : ?>
 		var UpdateDebitAmount<?php echo $_code ?> = function(){
 			
-			new Ajax.Request('<?php echo Mage::getUrl('hipay/cc/updateDebitAmount',array('_secure'=>true)) ?>', {
+			new Ajax.Request('<?php echo Mage::getUrl('hipay/cc/updateDebitAmount') ?>', {
 	            evalScripts: true,
 	            parameters: {'payment_profile_id': $('<?php echo $_code ?>_split_payment').value,'method_code': '<?php echo $_code ?>'},
 	            onSuccess: function(transport) {

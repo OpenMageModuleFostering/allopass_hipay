@@ -170,39 +170,14 @@ class Allopass_Hipay_Model_Observer
 	
 	public function orderCanRefund($observer)
 	{
-		/* @var $order Mage_Sales_Model_Order */
 		$order = $observer->getOrder();
-		if($order->getStatus() == Allopass_Hipay_Model_Method_Abstract::STATUS_CAPTURE_REQUESTED){
-			
-			//$order->setForcedCanCreditmemo(false);
-		}
-		
-		if($order->getPayment() && strpos($order->getPayment()->getMethod(), 'hipay') !== false)
+		if($order->getStatus() == Allopass_Hipay_Model_Method_Abstract::STATUS_CAPTURE_REQUESTED)
+			$order->setForcedCanCreditmemo(false);
+		if($order->getPayment())
 		{
-			
-			//If configuration validate order with status 117 (capture requested) and Notification 118 (Captured) is not received
-			// we disallow refund
-			if(((int)$order->getPayment()->getMethodInstance()->getConfigData('hipay_status_validate_order') == 117)  === true ){
-					
-				$histories = Mage::getResourceModel('sales/order_status_history_collection')
-									->setOrderFilter($order)
-										->addFieldToFilter('comment',
-											array(
-												// for new order 
-												array('like'=>'%code-118%'),
-												// for old order
-												array('like'=>'%: 118 Message: %')
-											));
-
-				if($histories->count() < 1){
-			
-					//$order->setForcedCanCreditmemo(false);
-				}
-			}
-			
 			if($order->getPayment()->getMethod() == 'hipay_cc' && strtolower($order->getPayment()->getCcType()) == 'bcmc')
 			{
-				//$order->setForcedCanCreditmemo(false);
+				$order->setForcedCanCreditmemo(false);
 			}
 		}
 		
