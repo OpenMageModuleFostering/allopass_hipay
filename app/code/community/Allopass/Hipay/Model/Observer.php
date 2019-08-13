@@ -94,4 +94,137 @@ class Allopass_Hipay_Model_Observer
 		return $this;
 		
 	}
+	
+	public function paySplitPayments()
+	{
+		
+		$date = new Zend_Date();
+		
+		//TODO add filter for max attempts
+		$splitPayments = Mage::getModel('hipay/splitPayment')->getCollection()
+								->addFieldToFilter('status',array('in'=>array(Allopass_Hipay_Model_SplitPayment::SPLIT_PAYMENT_STATUS_PENDING,
+																			Allopass_Hipay_Model_SplitPayment::SPLIT_PAYMENT_STATUS_FAILED)))
+								->addFieldTofilter('date_to_pay',array('to' => $date->toString('Y-MM-dd 00:00:00')));
+
+		
+		foreach ($splitPayments as $splitPayment) {
+			try {
+				$splitPayment->pay();
+			} catch (Exception $e) {
+				$splitPayment->sendErrorEmail();
+				Mage::logException($e);
+			}
+		}
+	}
+	
+	public function arrangeOrderView($observer)
+	{
+		/* @var $block Mage_Adminhtml_Block_Sales_Order_View|Mage_Adminhtml_Block_Sales_Transactions_Detail */
+		$block = $observer->getBlock();
+		
+		/* @var $order Mage_Sales_Model_Order */
+		if($block instanceof Mage_Adminhtml_Block_Sales_Order_View)
+		{
+			$isAllowedAction = Mage::getSingleton('admin/session')->isAllowed('sales/order/actions/review_payment');
+			if(!$isAllowedAction)
+				return $this;
+			
+			$order = $block->getOrder();
+			
+			if(strpos($order->getPayment()->getMethod(), "hipay") === false)
+				return $this;
+
+			if($order->canReviewPayment())
+			{
+				$url = $block->getUrl("hipay/adminhtml_payment/reviewCapturePayment");
+				$message = Mage::helper('sales')->__('Are you sure you want to accept this payment?');
+                $block->addButton('accept_capture_payment', array(
+                    'label'     => Mage::helper('sales')->__('Accept and Capture Payment'),
+                    'onclick'   => "confirmSetLocation('{$message}', '{$url}')",
+                ));
+			}
+			
+				
+		}
+		elseif($block instanceof Mage_Adminhtml_Block_Sales_Transactions_Detail)
+		{
+			$txnId = $block->getTxnIdHtml();
+			$orderIncrementId = $block->getOrderIncrementIdHtml();
+			
+			
+			$order = Mage::getModel('sales/order')->loadByIncrementId(trim($orderIncrementId));
+			if($order->getId() && strpos($order->getPayment()->getMethod(), 'hipay') !== false)
+			{
+				$link = '<a href="https://merchant.hipay-tpp.com//transaction/detail/index/trxid/'.$txnId.'" target="_blank">'.$txnId.'</a>';
+				$block->setTxnIdHtml($link);
+			}
+			
+			
+			
+		}
+	}
+	
+	public function orderCanRefund($observer)
+	{
+		$order = $observer->getOrder();
+		if($order->getStatus() == Allopass_Hipay_Model_Method_Abstract::STATUS_CAPTURE_REQUESTED)
+			$order->setForcedCanCreditmemo(false);
+		
+		if($order->getPayment()->getMethod() == 'hipay_cc' && strtolower($order->getPayment()->getCcType()) == 'bcmc')
+		{
+			$order->setForcedCanCreditmemo(false);
+		}
+		
+	}
+	
+	
+	/**
+	 *  Authorize redirect to Hipay payment
+	 */
+	public function initRedirect4Multishipping($observer) {
+		Mage::getSingleton('checkout/session')->setCanRedirect4Multishipping(true);
+	}
+	
+	/**
+	 *  Return Redirect URL for payment
+	 *
+	 *  @return	  string Place Order Redirect URL
+	 */
+	public function multishippingRedirectUrl($observer) {
+		if (Mage::getSingleton('checkout/session')->getCanRedirect4Multishipping()) {
+			
+			$orderIds = Mage::getSingleton('core/session')->getOrderIds();
+			$orderIdsTmp = $orderIds;
+			$key = array_pop($orderIdsTmp);
+			$order = Mage::getModel('sales/order')->loadByIncrementId($key);
+	
+			if (!(strpos($order->getPayment()->getMethod(), 'hipay') === false)) {
+				$methodController = str_replace("_","/",$order->getPayment()->getMethod());
+				Mage::getSingleton('checkout/session')
+				->setLastRealOrderId($order->getIncrementId())
+				->setLastOrderId($order->getId())
+				->setRealOrderIds(implode(',', $orderIds));
+				Mage::app()->getResponse()->setRedirect(Mage::getUrl($methodController.'/sendRequest',array('_secure' => true)));
+			}
+		} else {
+			Mage::getSingleton('checkout/session')->unsRealOrderIds();
+		}
+	
+		return $this;
+	}
+	
+	/**
+	 *  Disables sending email after the order creation
+	 *
+	 *  @return	  updated order
+	 */
+	public function disableEmail4Multishipping($observer) {
+		$order = $observer->getOrder();
+	
+		if (!(strpos($order->getPayment()->getMethod(), 'hipay') === false)) {
+			$order->setCanSendNewEmailFlag(false)->save();
+		}
+	
+		return $this;
+	}
 }

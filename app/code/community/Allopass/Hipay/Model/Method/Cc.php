@@ -2,6 +2,7 @@
 class Allopass_Hipay_Model_Method_Cc extends Allopass_Hipay_Model_Method_Abstract
 {
 	
+	protected $_canReviewPayment		= true;
 	const STATUS_PENDING_CAPTURE = 'pending_capture';
 	
 	protected $_code  = 'hipay_cc';
@@ -32,9 +33,9 @@ class Allopass_Hipay_Model_Method_Cc extends Allopass_Hipay_Model_Method_Abstrac
 		->setCcSsIssue($data->getCcSsIssue())
 		->setCcSsStartMonth($data->getCcSsStartMonth())
 		->setCcSsStartYear($data->getCcSsStartYear())
-		->setAdditionalInformation('create_oneclick',$data->getOneclick() == "create_oneclick" ? 1 : 0)
-		->setAdditionalInformation('use_oneclick',$data->getOneclick() == "use_oneclick" ? 1 : 0)
 		;
+		
+		$this->assignInfoData($info, $data);
 		
 		return $this;
 	}
@@ -101,11 +102,16 @@ class Allopass_Hipay_Model_Method_Cc extends Allopass_Hipay_Model_Method_Abstrac
 		$payment = $this->getInfoInstance();
 		$order = $payment->getOrder();
 		$customer = Mage::getModel('customer/customer')->load($order->getCustomerId());
-		
+		$token = "";
 		
 		if($payment->getAdditionalInformation('use_oneclick') && $customer->getId())
 		{
-			$token = $customer->getHipayAliasOneclick();
+			$cardId = $payment->getAdditionalInformation('selected_oneclick_card');
+			$card = Mage::getModel('hipay/card')->load($cardId);
+			if($card->getId() && $card->getCustomerId() == $customer->getId())
+				$token = $card->getCcToken();
+			else 
+				Mage::throwException(Mage::helper('hipay')->__("Error with your card!"));
 		}
 		else 
 		{
@@ -128,6 +134,8 @@ class Allopass_Hipay_Model_Method_Cc extends Allopass_Hipay_Model_Method_Abstrac
 	 */
 	public function capture(Varien_Object $payment, $amount)
 	{
+		//TODO CHECK AMOUNT FOR SPLIT PAYMENT
+		
 		parent::capture($payment, $amount);
 	
 		if ($this->isPreauthorizeCapture($payment) /*|| $this->orderDue($payment->getOrder())*/)
@@ -158,7 +166,16 @@ class Allopass_Hipay_Model_Method_Cc extends Allopass_Hipay_Model_Method_Abstrac
    
     	$paymentProduct = null; 	
     	if($payment->getAdditionalInformation('use_oneclick'))
-    		$paymentProduct = Mage::getSingleton('customer/session')->getCustomer()->getHipayCcType();
+    	{
+    		$cardId = $payment->getAdditionalInformation('selected_oneclick_card');
+    		$card = Mage::getModel('hipay/card')->load($cardId);
+
+    		if($card->getId() && $card->getCustomerId() == $customer->getId())
+    			$paymentProduct = $card->getCcType();
+    		else
+    			Mage::throwException(Mage::helper('hipay')->__("Error with your card!"));
+    		
+    	}
     	else
     		$paymentProduct = $this->getCcTypeHipay($payment->getCcType());
     	

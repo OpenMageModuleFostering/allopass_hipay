@@ -6,6 +6,9 @@ class Allopass_Hipay_Model_Method_YandexApi extends Allopass_Hipay_Model_Method_
 	protected $_formBlockType = 'hipay/form_hosted';
 	protected $_infoBlockType = 'hipay/info_hosted';
 	
+	protected $_canRefund               = false;
+	protected $_canRefundInvoicePartial = false;
+	
 	
 	public function getOrderPlaceRedirectUrl()
 	{
@@ -25,10 +28,9 @@ class Allopass_Hipay_Model_Method_YandexApi extends Allopass_Hipay_Model_Method_
 			$data = new Varien_Object($data);
 		}
 		$info = $this->getInfoInstance();
-		$info->setCcType($this->getConfigData('cctypes'))
-		->setAdditionalInformation('create_oneclick',$data->getOneclick() == "create_oneclick" ? 1 : 0)
-		->setAdditionalInformation('use_oneclick',$data->getOneclick() == "use_oneclick" ? 1 : 0)
-		;
+		$info->setCcType($this->getConfigData('cctypes'));
+		
+		$this->assignInfoData($info, $data);
 		
 		return $this;
 	}
@@ -43,7 +45,12 @@ class Allopass_Hipay_Model_Method_YandexApi extends Allopass_Hipay_Model_Method_
 		
 		if($payment->getAdditionalInformation('use_oneclick') && $customer->getId())
 		{
-			$token = $customer->getHipayAliasOneclick();
+			$cardId = $payment->getAdditionalInformation('selected_oneclick_card');
+			$card = Mage::getModel('hipay/card')->load($cardId);
+			if($card->getId() && $card->getCustomerId() == $customer->getId())
+				$token = $card->getCcToken();
+			else 
+				Mage::throwException(Mage::helper('hipay')->__("Error with your card!"));
 			$payment->setAdditionalInformation('token',$token);
 		}
 		

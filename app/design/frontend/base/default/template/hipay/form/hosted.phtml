@@ -1,26 +1,57 @@
-<?php $_code=$this->getMethodCode() ?>
+<?php 
+$_code=$this->getMethodCode();
+$_cards = $this->getCards();
+?>
 <div id="payment_form_<?php echo $_code ?>" style="display:none;">
+<?php if($this->allowSplitPayment()) : ?>
+<ul class="form-list" id="splitpayment_card_payment_form_<?php echo $_code ?>" >
+	 <li>
+		 <div class="input-box">
+		 	<label style="float: none;" for="<?php echo $_code ?>_split_payment"><?php echo $this->__('Split your Payment') ?></label><br />
+		 	<select id="<?php echo $_code ?>_split_payment" name="payment[split_payment_id]">
+		 		<option value=""><?php echo $this->__('-- Please select your split payment --')?></option>
+		 		<?php foreach ($this->getSplitPaymentProfiles() as $profile) : ?>
+		 			<option value="<?php echo $profile->getId()?>"><?php echo $profile->getName()?></option>
+		 		<?php endforeach;?>
+		 	</select>
+		 </div>
+	 </li>
+ </ul>
+ <br />
+<?php endif; ?>
 <?php if ($this->oneClickIsAllowed()) : ?>
 <ul class="form-list" id="oneclick_hosted_payment_form_<?php echo $_code ?>">
  <li>
 
-			<?php if (!$this->getCustomerHasAlias() || ($this->getCustomerHasAlias() && !$this->ccExpDateIsValid())) :?>
+	<?php if (!$this->getCustomerHasCard()) :?>
 			<div class="input-box">
 				<input id="<?php echo $_code ?>_create_alias_oneclick"  value="create_oneclick"  type="checkbox" name="payment[oneclick]" />
 				<label style="float: none;" for="<?php echo $_code ?>_create_alias_oneclick"><?php echo $this->__('Record your card data for a next buy.') ?></label>
 			</div>
-		<?php elseif ($this->getCustomerHasAlias() && $this->ccExpDateIsValid()): ?>
+		<?php else :?>
+			
 			<div class="input-box">
-				<input id="<?php echo $_code ?>_use_alias_oneclick" value="use_oneclick" checked="checked"   type="radio" name="payment[oneclick]"   />
+				<input id="<?php echo $_code ?>_use_alias_oneclick" value="use_oneclick" checked="checked" type="radio" name="payment[oneclick]"  checked/>
 				<label style="float: none;" for="<?php echo $_code ?>_use_alias_oneclick"><?php echo $this->__('Use my recorded card') ?></label>
 			</div>
+
 			<div class="input-box info-card">
+				<select id="<?php echo $_code ?>_oneclick_selected_card" name="payment[oneclick_card]" >
+					<?php foreach ($_cards as $card):?>
+						<option value="<?php echo $card->getId()?>"><?php echo $card->getName()?></option>
+					<?php endforeach;?>
+			 	</select>
+		 	</div>
+			
+			<!-- <div class="input-box info-card">
 				<label><?php echo $this->__('Actual card') ?> :</label>
 				<span><?php echo $this->getCustomer()->getHipayCcNumberEnc() ?></span>
 			</div>
 			<div class="input-box info-card">
 				<label><?php echo $this->__('Expiration date') ?> : <?php echo $this->getCustomer()->getHipayCcExpDate() ?></label>
-			</div>
+			</div>-->
+			
+			
 			<div class="input-box">
 				<input id="<?php echo $_code ?>_create_alias_oneclick"  type="radio" name="payment[oneclick]" value="create_oneclick"/>
 				<label style="float: none;" for="<?php echo $_code ?>_create_alias_oneclick"><?php echo $this->__('Record new card data') ?></label>
@@ -35,10 +66,12 @@
 </li>
    
 </ul>
+ <br />
  <?php endif; ?>
 <?php echo $this->__('You will be redirect to payment page after submit order.')?>
 <script type="text/javascript">
 	//<![CDATA[
+	<?php $iFrameConfig = $this->getIframeConfig() ?>
 	
 	Review.prototype.displayIframe = function(url) {
         
@@ -47,18 +80,13 @@
         // Create container Iframe
         var hipayIframeWrapper = $('hipay_iframe_wrapper');
         if (hipayIframeWrapper === null) {
-            hipayIframeWrapper = new Element('div', {id: 'hipay_iframe_wrapper', style: 'text-align: center; border-bottom: 1px solid #BEBCB7; border-left: 1px solid #BEBCB7; border-right: 1px solid #BEBCB7;'});
+            hipayIframeWrapper = new Element('div', {id: 'hipay_iframe_wrapper', style: '<?php echo $iFrameConfig['iframe_wrapper_style']?>'});
             $('checkout-review-table-wrapper').insert({after: hipayIframeWrapper});
             
         }
 
         // generate Iframe
-        hipayIframeWrapper.appendChild(new Element('iframe', {frameBorder: 0, width: '485px', height: '450px', src: url, style: 'margin: 10px 0; border: 1px solid #BEBCB7;'}));
-        //var button = new Element('button', {'class': 'button', type: 'button'}).update('<span><span>Cancel</span></span>');
-        //Event.observe(button, 'click', this.cancel.bind(this));
-        //hipayIframeWrapper.appendChild(button);
-        
-        
+        hipayIframeWrapper.appendChild(new Element('iframe', {frameBorder: 0, width: '<?php echo $iFrameConfig['iframe_width']?>', height: '<?php echo $iFrameConfig['iframe_height']?>', src: url, style: '<?php echo $iFrameConfig['iframe_style']?>'}));      
 
    };
    

@@ -13,6 +13,7 @@ class Allopass_Hipay_Model_Api_Request
 	const GATEWAY_ACTION_MAINTENANCE = 'maintenance/transaction/';
 	
 	const GATEWAY_ACTION_HOSTED = "hpayment";
+
  	
 	/**
 	 *

@@ -13,22 +13,9 @@ class Allopass_Hipay_Controller_Payment extends Mage_Core_Controller_Front_Actio
 	 */
 	public function preDispatch() {
 		parent::preDispatch();
-		
-		if (!$this->_validateSignature()) {
-			$this->getResponse()->setBody("NOK. Wrong Signature!");
-			$this->setFlag('', 'no-dispatch', true);
-		}
+
 	}
-	
-	
-	protected function _validateSignature()
-	{
-		return true;
-		/* @var $_helper Allopass_Hipay_Helper_Data */
-		$_helper = Mage::helper('hipay');
-		$signature = $this->getRequest()->getParam('hash');
-		return $_helper->checkSignature($signature);
-	}
+
 	
 	/**
 	 * 
@@ -43,6 +30,7 @@ class Allopass_Hipay_Controller_Payment extends Mage_Core_Controller_Front_Actio
 	{
 		$order = $this->getOrder();
 		$payment = $order->getPayment();
+
 		$methodInstance = $this->_getMethodInstance();
 		
 		try
@@ -92,6 +80,15 @@ class Allopass_Hipay_Controller_Payment extends Mage_Core_Controller_Front_Actio
 					$profile->save();
 				}
 			}
+			
+			
+			$session = Mage::getSingleton('checkout/session');
+			if (!$session->getLastSuccessQuoteId()) {
+				
+				$session->setLastSuccessQuoteId($this->getOrder()->getIncrementId());
+				$session->setLastQuoteId($this->getOrder()->getId());
+			}
+			
 		}
 		/*else 
 		{		
@@ -113,6 +110,11 @@ class Allopass_Hipay_Controller_Payment extends Mage_Core_Controller_Front_Actio
 	
 	public function declineAction()
 	{
+		$lastOrderId =  $this->getOrder()->getIncrementId();
+		
+		Mage::getSingleton('checkout/session')->setLastQuoteId($lastOrderId);
+		Mage::getSingleton('checkout/session')->setLastOrderId($lastOrderId);
+		
 		$this->processResponse();
 		$this->_redirect('checkout/onepage/failure');
 		return $this;
@@ -121,6 +123,12 @@ class Allopass_Hipay_Controller_Payment extends Mage_Core_Controller_Front_Actio
 	
 	public function exceptionAction()
 	{
+		
+		$lastOrderId =  $this->getOrder()->getIncrementId();
+		
+		Mage::getSingleton('checkout/session')->setLastQuoteId($lastOrderId);
+		Mage::getSingleton('checkout/session')->setLastOrderId($lastOrderId);
+		
 		$this->_redirect('checkout/onepage/failure');
 		return $this;
 	}
@@ -182,45 +190,12 @@ class Allopass_Hipay_Controller_Payment extends Mage_Core_Controller_Front_Actio
 							$this->_order->getPayment()->setAdditionalInformation('token',isset($additionalInfo['token']) ? $additionalInfo['token'] : "");
 							$this->_order->getPayment()->setAdditionalInformation('create_oneclick',isset($additionalInfo['create_oneclick']) ? $additionalInfo['create_oneclick'] : 1);
 							$this->_order->getPayment()->setAdditionalInformation('use_oneclick',isset($additionalInfo['use_oneclick']) ? $additionalInfo['use_oneclick'] : 0);
+							$this->_order->getPayment()->setAdditionalInformation('selected_oneclick_card',isset($additionalInfo['selected_oneclick_card']) ? $additionalInfo['selected_oneclick_card'] : 0);
 						}
 						
 						
 						
 						return $this->_order; //because only one nominal item in cart is authorized and Hipay not manage many profiles
-						
-						//$amount = $this->getAmountFromProfile($profile);
-						
-						/*$productItemInfo = new Varien_Object;
-						$type = "Regular";
-						if ($type == 'Trial') {
-							$productItemInfo->setPaymentType(Mage_Sales_Model_Recurring_Profile::PAYMENT_TYPE_TRIAL);
-						} elseif ($type == 'Regular') {
-							$productItemInfo->setPaymentType(Mage_Sales_Model_Recurring_Profile::PAYMENT_TYPE_REGULAR);
-						}
-
-						
-						if($this->isInitialProfileOrder($profile))// because is not additonned in prodile obj
-							$productItemInfo->setPrice($profile->getBillingAmount() + $profile->getInitAmount());
-						
-						$this->_order = $profile->createOrder($productItemInfo);
-
-						$additionalInfo = $profile->getAdditionalInfo();
-
-						$this->_order->getPayment()->setCcType($additionalInfo['ccType']);
-						$this->_order->getPayment()->setCcExpMonth($additionalInfo['ccExpMonth']);
-						$this->_order->getPayment()->setCcExpYear($additionalInfo['ccExpYear']);
-						$this->_order->getPayment()->setAdditionalInformation('token',$additionalInfo['token']);
-						$this->_order->getPayment()->setAdditionalInformation('create_oneclick',$additionalInfo['create_oneclick']);
-						$this->_order->getPayment()->setAdditionalInformation('use_oneclick',$additionalInfo['use_oneclick']);
-						
-						$orderId = 'create-recurring';					
-						$orderId .= "-".$profileId;
-						//$this->_order->setIncrementId($orderId);
-						$this->_order->save();
-						$profile->addOrderRelation($this->_order->getId());
-						$profile->save();*/
-						return $this->_order; //because only one nominal item in cart is authorized and Hipay not manage many profiles
-						//break;
 					}
 					
 					
@@ -232,7 +207,9 @@ class Allopass_Hipay_Controller_Payment extends Mage_Core_Controller_Front_Actio
 					
 			}
 			else
+			{
 				$this->_order = Mage::getModel('sales/order')->load($this->getCheckout()->getLastOrderId());
+			}
 		}
 		
 		return $this->_order;
@@ -268,5 +245,58 @@ class Allopass_Hipay_Controller_Payment extends Mage_Core_Controller_Front_Actio
 	protected function getCheckout()
 	{
 		return Mage::getSingleton('checkout/session');
+	}
+	
+	
+	public function updateDebitAmountAction()
+	{
+		/* @var $_helper Allopass_Hipay_Helper_Data */
+		$_helper = Mage::helper('hipay');
+		$response = array();
+		$response['error'] = true;
+		$response['success'] = false;
+		
+		$payment_profile_id = $this->getRequest()->getParam('payment_profile_id',false);
+		$amount = $this->getCheckout()->getQuote()->getGrandTotal();
+		
+		$response['message'] = Mage::helper('hipay')->__('You will be debit of amount %s only after submit order.',Mage::app()->getStore()->getBaseCurrency()->format($amount, array(), true));
+		
+		if($payment_profile_id)
+		{
+			try {
+				
+				$splitPayment = $_helper->splitPayment((int)$payment_profile_id, $amount);
+				$response['success'] = true;
+				$response['error'] = false;
+				$response['splitPayment'] = $splitPayment;
+				$response['grandTotal'] = $amount;
+				$firstAmount = $splitPayment[0]['amountToPay'];
+				array_shift($splitPayment);
+				$otherPayments = "<p><span>" . Mage::helper('hipay')->__("Your next payments:") . '</span><table class="data-table" id="split-payment-cc-table">';
+				foreach ($splitPayment as $value)
+				{
+					$otherPayments .= '<tr>';
+					$amount = Mage::app()->getStore()->getBaseCurrency()->format($value['amountToPay'], array(), true);
+					$dateToPay = new Zend_Date($value['dateToPay']);
+					$otherPayments .= '<td>' . $dateToPay->toString(Zend_Date::DATE_LONG) . "</td><td> " . $amount . '</td>' ;
+					$otherPayments .= '</tr>';
+				}
+				$otherPayments .= '<table></p>';
+				
+				$response['labelSplitPayment'] = "<p><span>" . Mage::helper('hipay')->__('You will be debit of amount %s only after submit order.',Mage::app()->getStore()->getBaseCurrency()->format($firstAmount, array(), true)) . '</span></p>';				
+				$response['labelSplitPayment'] .= $otherPayments;
+				
+			} catch (Exception $e) {
+
+				$response['message'] = $e->getMessage();
+				
+			}
+			
+			
+		}
+
+		
+		$this->getResponse()->setBody(Mage::helper('core')->jsonEncode($response));
+		
 	}
 }

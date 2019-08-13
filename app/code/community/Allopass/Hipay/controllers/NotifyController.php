@@ -26,9 +26,11 @@ class Allopass_Hipay_NotifyController extends Mage_Core_Controller_Front_Action
 		/* @var $_helper Allopass_Hipay_Helper_Data */
 		$_helper = Mage::helper('hipay');
 		
+		/* @var $response Allopass_Hipay_Model_Api_Response_Notification */
+		$response  = Mage::getSingleton('hipay/api_response_notification',$this->getRequest()->getParams());
 		
 		$signature = $this->getRequest()->getServer('HTTP_X_ALLOPASS_SIGNATURE');
-		return $_helper->checkSignature($signature,true);
+		return $_helper->checkSignature($signature,true,$response);
 	}
 	
 
@@ -42,8 +44,8 @@ class Allopass_Hipay_NotifyController extends Mage_Core_Controller_Front_Action
 		/* @var $order Mage_Sales_Model_Order */
 		$order = Mage::getModel('sales/order')->loadByIncrementId($orderArr['id']);
 		
-		if(!$order->getId() && strpos($orderArr['id'], 'recurring') === false)
-			Mage::throwException("Order not found in notification");
+		if(!$order->getId() && (strpos($orderArr['id'], 'recurring') === false && strpos($orderArr['id'], 'split') === false))
+			die("Order not found in notification");
 		
 		if(strpos($orderArr['id'], 'recurring') !== false)
 		{
@@ -68,11 +70,17 @@ class Allopass_Hipay_NotifyController extends Mage_Core_Controller_Front_Action
 					
 				}
 				else
-					Mage::throwException(Mage::helper('hipay')->__("Profile for ID: %d doesn't exists (Recurring).",$profileId));
+					die(Mage::helper('hipay')->__("Profile for ID: %d doesn't exists (Recurring).",$profileId));
 			}
 			else 
-				Mage::throwException(Mage::helper('hipay')->__("Order Id not present (Recurring)."));
+				die(Mage::helper('hipay')->__("Order Id not present (Recurring)."));
 				
+		}
+		elseif (strpos($orderArr['id'], 'split') !== false)
+		{
+			list($id,$type,$splitPaymentId) = explode("-", $orderArr['id']);
+			/* @var $order Mage_Sales_Model_Order */
+			$order = Mage::getModel('sales/order')->loadByIncrementId($id);
 		}
 		
 		$payment = $order->getPayment();
@@ -137,7 +145,8 @@ class Allopass_Hipay_NotifyController extends Mage_Core_Controller_Front_Action
 		$order->getPayment()->setAdditionalInformation('token',$additionalInfo['token']);
 		$order->getPayment()->setAdditionalInformation('create_oneclick',$additionalInfo['create_oneclick']);
 		$order->getPayment()->setAdditionalInformation('use_oneclick',$additionalInfo['use_oneclick']);
-	
+		//$order->getPayment()->setAdditionalInformation('selected_oneclick_card', $additionalInfo['selected_oneclick_card']);
+		
 		$order->setState(Mage_Sales_Model_Order::STATE_NEW,'pending',Mage::helper('hipay')->__("New Order Recurring!"));
 		
 		$order->save();
