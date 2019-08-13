@@ -26,10 +26,6 @@ class Allopass_Hipay_Block_Adminhtml_PaymentProfile_Edit extends Mage_Adminhtml_
                 editForm.submit($('edit_form').action+'back/edit/');
             }
         ";
-
     }
-    
-    
-    
 
 }

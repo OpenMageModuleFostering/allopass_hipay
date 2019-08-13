@@ -6,49 +6,55 @@ class Allopass_Hipay_Model_Observer
 	 */
 	public function cancelOrdersInPending()
 	{
-		
-		//$methodCodes = array('hipay_cc'=>'hipay/method_cc','hipay_hosted'=>'hipay/method_hosted');
-		$methodCodes = Mage::helper('hipay')->getHipayMethods();
-		foreach ($methodCodes as $methodCode=>$model)
+		$methodCodes = array();
+		//Select only method with cancel orders enabled
+		foreach (Mage::helper('hipay')->getHipayMethods() as $code=>$model)
 		{
-			if(!Mage::getStoreConfig('payment/'.$methodCode."/cancel_pending_order"))
-				continue;
-			
-			$limitedTime = 30;
-				
-			$date = new Zend_Date();//Mage::app()->getLocale()->date();
-			
-			/* @var $collection Mage_Sales_Model_Resource_Order_Collection */
-			$collection = Mage::getResourceModel('sales/order_collection');
-			$collection->addFieldToSelect(array('entity_id','state'))
-				
-			->addAttributeToFilter('created_at', array('to' => ($date->subMinute($limitedTime)->toString('Y-MM-dd HH:mm:ss'))))
-			;
-			
-			
-			/* @var $order Mage_Sales_Model_Order */
-			foreach ($collection as $order)
+			if(Mage::getStoreConfig('payment/'.$code."/cancel_pending_order"))
 			{
-	
-				if($order->getPayment()->getMethod() == $methodCode)
-				{
-					if($order->canCancel() && $order->getState() == Mage_Sales_Model_Order::STATE_NEW)
-					{
-						try {
-							$order->cancel();
-							$order
-							->addStatusToHistory($order->getStatus(),
-									// keep order status/state
-									Mage::helper('hipay')->__("Order canceled automatically by cron because order is pending since %d minutes",$limitedTime));
-	
-							$order->save();
-						} catch (Exception $e) {
-							Mage::logException($e);
-						}
-					}
-				}
+				$methodCodes[] = $code;
 			}
 		}
+		
+		if(count($methodCodes) < 1)
+			return $this;
+			
+		//Limited time in minutes
+		$limitedTime = 30;
+		
+		$date = new Zend_Date();
+			
+		/* @var $collection Mage_Sales_Model_Resource_Order_Collection */
+		$collection = Mage::getResourceModel('sales/order_collection');
+		$collection->addFieldToSelect(array('entity_id'))
+		->addFieldToFilter('state',Mage_Sales_Model_Order::STATE_NEW)
+		->addFieldToFilter('op.method',array('in'=>array_values($methodCodes)))
+		->addAttributeToFilter('created_at', array('to' => ($date->subMinute($limitedTime)->toString('Y-MM-dd HH:mm:ss'))))
+		->join(array('op' => 'sales/order_payment'), 'main_table.entity_id=op.parent_id', array('method'));
+		
+		
+		/* @var $order Mage_Sales_Model_Order */
+		foreach ($collection as $order)
+		{
+		
+			if($order->canCancel())
+			{
+				try {
+						
+					$order->cancel();
+					$order
+					->addStatusToHistory($order->getStatus(),// keep order status/state
+							Mage::helper('hipay')->__("Order canceled automatically by cron because order is pending since %d minutes",$limitedTime));
+		
+					$order->save();
+		
+				} catch (Exception $e) {
+					Mage::logException($e);
+				}
+			}
+				
+		}
+		
 		return $this;
 	}
 	
@@ -169,62 +175,14 @@ class Allopass_Hipay_Model_Observer
 		$order = $observer->getOrder();
 		if($order->getStatus() == Allopass_Hipay_Model_Method_Abstract::STATUS_CAPTURE_REQUESTED)
 			$order->setForcedCanCreditmemo(false);
-		
-		if($order->getPayment()->getMethod() == 'hipay_cc' && strtolower($order->getPayment()->getCcType()) == 'bcmc')
+		if($order->getPayment())
 		{
-			$order->setForcedCanCreditmemo(false);
+			if($order->getPayment()->getMethod() == 'hipay_cc' && strtolower($order->getPayment()->getCcType()) == 'bcmc')
+			{
+				$order->setForcedCanCreditmemo(false);
+			}
 		}
 		
-	}
-	
-	
-	/**
-	 *  Authorize redirect to Hipay payment
-	 */
-	public function initRedirect4Multishipping($observer) {
-		Mage::getSingleton('checkout/session')->setCanRedirect4Multishipping(true);
-	}
-	
-	/**
-	 *  Return Redirect URL for payment
-	 *
-	 *  @return	  string Place Order Redirect URL
-	 */
-	public function multishippingRedirectUrl($observer) {
-		if (Mage::getSingleton('checkout/session')->getCanRedirect4Multishipping()) {
-			
-			$orderIds = Mage::getSingleton('core/session')->getOrderIds();
-			$orderIdsTmp = $orderIds;
-			$key = array_pop($orderIdsTmp);
-			$order = Mage::getModel('sales/order')->loadByIncrementId($key);
-	
-			if (!(strpos($order->getPayment()->getMethod(), 'hipay') === false)) {
-				$methodController = str_replace("_","/",$order->getPayment()->getMethod());
-				Mage::getSingleton('checkout/session')
-				->setLastRealOrderId($order->getIncrementId())
-				->setLastOrderId($order->getId())
-				->setRealOrderIds(implode(',', $orderIds));
-				Mage::app()->getResponse()->setRedirect(Mage::getUrl($methodController.'/sendRequest',array('_secure' => true)));
-			}
-		} else {
-			Mage::getSingleton('checkout/session')->unsRealOrderIds();
-		}
-	
-		return $this;
-	}
-	
-	/**
-	 *  Disables sending email after the order creation
-	 *
-	 *  @return	  updated order
-	 */
-	public function disableEmail4Multishipping($observer) {
-		$order = $observer->getOrder();
-	
-		if (!(strpos($order->getPayment()->getMethod(), 'hipay') === false)) {
-			$order->setCanSendNewEmailFlag(false)->save();
-		}
-	
-		return $this;
+		
 	}
 }
