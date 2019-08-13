@@ -37,7 +37,6 @@
 </ul>
  <?php endif; ?>
 <?php echo $this->__('You will be redirect to payment page after submit order.')?>
-<?php $iframe = $this->getIframeConfig()?>
 <script type="text/javascript">
 	//<![CDATA[
 	
@@ -54,10 +53,7 @@
         }
 
         // generate Iframe
-        <?php if (strlen($iframe['iframe_width']) > 1) $iframe_width = $iframe['iframe_width']; else $iframe_width = 450;
-        if (strlen($iframe['iframe_height']) > 1) $iframe_height = $iframe['iframe_height']; else $iframe_height = 670;
-        if (strlen($iframe['iframe_style']) > 1) $iframe_style = $iframe['iframe_style']; else $iframe_style = 'border:1px solid #CCC;border-radius:15px;padding:10px;max-width:500px;'; ?>
-        hipayIframeWrapper.appendChild(new Element('iframe', {frameBorder: 0, width: '<?php echo $iframe_width; ?>', height: '<?php echo $iframe_height; ?>', src: url, style: '<?php echo $iframe_style; ?>'}));
+        hipayIframeWrapper.appendChild(new Element('iframe', {frameBorder: 0, width: '485px', height: '450px', src: url, style: 'margin: 10px 0; border: 1px solid #BEBCB7;'}));
         //var button = new Element('button', {'class': 'button', type: 'button'}).update('<span><span>Cancel</span></span>');
         //Event.observe(button, 'click', this.cancel.bind(this));
         //hipayIframeWrapper.appendChild(button);

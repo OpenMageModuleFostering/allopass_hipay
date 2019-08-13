@@ -3,7 +3,7 @@
     "type": "magento-module",
     "license": "GNU-General-Public-License-(GPL)",
     "homepage": "",
-    "description": "HiPay Fullservice Payment Methods",
+    "description": "Payment method HIPAY",
     "authors": [
     {
         "name": "Kassim_Profileo",
