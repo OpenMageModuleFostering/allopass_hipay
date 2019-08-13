@@ -1,0 +1,16 @@
+{
+    "name": "OpenMageModuleFostering/Allopass_Hipay",
+    "type": "magento-module",
+    "license": "GNU-General-Public-License-(GPL)",
+    "homepage": "",
+    "description": "HiPay Fullservice Payment Methods",
+    "authors": [
+    {
+        "name": "Kassim_Profileo",
+        "email": "kassim@profileo.com"
+    }
+],
+    "suggest": {
+        "magento-hackathon/magento-composer-installer": "*"
+    }
+}
