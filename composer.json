@@ -1,16 +1,19 @@
 {
-    "name": "OpenMageModuleFostering/Allopass_Hipay",
+    "name": "OpenMageModuleFostering\/Allopass_Hipay",
     "type": "magento-module",
     "license": "General-Public-License-(GPL)",
     "homepage": "",
     "description": "Official HiPay Fullservice payment extension.",
     "authors": [
-    {
-        "name": "Kassim Belghait",
-        "email": "kassim@sirateck.com"
-    }
-],
+        {
+            "name": "Kassim Belghait",
+            "email": "kassim@sirateck.com"
+        }
+    ],
     "suggest": {
-        "magento-hackathon/magento-composer-installer": "*"
-    }
+        "magento-hackathon\/magento-composer-installer": "*"
+    },
+    "keywords": [
+        "openmage-module"
+    ]
 }
